@@ -1,0 +1,350 @@
+#chip 16F887
+
+#define lcd_io 4
+#define lcd_speed medium
+#define lcd_rs portd.0
+#define lcd_rw portd.1
+#define lcd_enable portd.2
+#define lcd_db7 portd.7
+#define lcd_db6 portd.6
+#define lcd_db5 portd.5
+#define lcd_db4 portd.4
+
+dir porta.1 in
+dir portc.7 in
+dir portc.6 in
+dir porta.2 in
+dir portd.3 out
+
+adj = 14
+leftSensor =0
+front =0
+flame = 0
+lineDet= 0
+cooldown = 0
+
+lineCount = 0
+
+pause 200
+sensorInfo
+pause 200
+sensorInfo
+pause 200
+adjustdisable = false
+
+hasLine = false
+lines = 0
+rooms = 0
+detOn = true
+reset = 50
+rightpriority = false
+leftcooldown = 0
+superslow = false
+turncount = 0
+docount = false
+idkwhattoname = 15
+leftdisable = false
+lines = 0
+rooms = 0
+pisshole = 100
+
+sub timeout(time as integer)
+  interval = 10
+  endValue = time / interval
+  count = 0
+
+  do while count < endValue
+    sensorInfo
+    linedetection
+    detectFlame
+    pause interval
+
+    count++
+  loop
+end sub
+
+sub slowforward(time as integer)
+  endValue = time / 10
+  count = 0
+
+  do while count < endvalue
+    goForward
+    timeout 10
+    stopMotors
+    timeout 10
+
+    count++
+  loop
+end sub
+
+sub evenslowerforward(time as integer)
+  endValue = time/10
+  count = 0
+
+  do while count < endvalue
+    goForward
+    timeout 10
+    stopMotors
+    timeout 50
+
+    count++
+  loop
+end sub
+
+
+sub leftMotorF
+  portc.3 = 0
+  portc.0 = 1
+end sub
+
+sub leftMotorB
+  portc.3 = 1
+  portc.0 = 0
+end sub
+
+sub leftMotorS
+  portc.3 = 0
+  portc.0 = 0
+end sub
+
+sub rightMotorF
+  portc.2 = 0
+  portc.1 = 1
+end sub
+
+sub rightMotorB
+  portc.2 = 1
+  portc.1 = 0
+end sub
+
+sub rightMotorS
+  portc.2 = 0
+  portc.1 = 0
+end sub
+
+sub goForward
+  rightMotorf
+  leftMotorf
+end sub
+
+sub stopMotors
+  leftMotorS
+  rightMotorS
+end sub
+
+
+sub turnRightinplace
+  luke = 0
+
+  do while luke < 22
+    leftMotorF
+    rightMotorB
+    timeout 10
+    stopmotors
+    timeout 50
+
+    luke++
+  loop
+
+  if docount then
+    turncount++
+  end if
+end sub
+
+sub turnLeftinplace
+
+  for luke = 0 to 22
+    rightMotorF
+    leftMotorB
+    timeout 10
+    stopmotors
+    timeout 50
+  next
+
+  leftcooldown = reset
+
+  if docount then
+    turncount++
+  end if
+end sub
+
+sub detectFlame
+  flame = readad(AN2)
+
+  if flame < 8 then
+    stopmotors
+    portd.3 = 1
+    pause 500
+  end if
+
+  portd.3 = 0
+end sub
+
+sub sensorInfo
+  leftSensor = (6787 / (readad(AN0) - 3) - 4) / 5
+  front = (6787 / (readad(AN1) - 3) - 4) / 5
+  lineDet = readad(AN3)
+end sub
+
+sub adjustForward
+  if adjustdisable then
+  else
+    if leftSensor < adj then
+      leftMotorF
+      rightMotorS
+    else if leftSensor > adj then
+      leftMotorS
+      rightMotorF
+    end if
+    timeout 20
+  end if
+end sub
+
+sub linedetection
+  if detOn then
+    if lineDet < 200 then
+      if not hasLine then
+        hasLine = true
+        lines = lines + 1
+      end if
+    else
+      hasLine = false
+    end if
+  end if
+end sub
+
+
+main:
+  cls
+  locate 0,0
+  print lines
+  locate 1,0
+  print rooms
+
+  if docount then
+    locate 0,10
+    print turncount
+  end if
+
+  locate 1,10
+  if rightpriority then
+   print "rightp"
+  end if
+
+  if front < idkwhattoname then
+    if rightpriority then
+      turnrightinplace
+    else
+      if leftSensor > 45 then
+        print "leftfront"
+        turnleftinplace
+      else
+        turnrightinplace
+      end if
+    end if
+  else if cooldown % 20 = 0 then
+    adjustForward
+  else
+    if superslow then
+      evenslowerforward 10
+    else
+      slowForward 10
+    end if
+  end if
+
+  if (leftSensor > 45 and leftcooldown = 0 and not ((turncount = 6) or (turncount = 7))) and not leftdisable then
+    goforward
+    pause pisshole
+    turnLeftinplace
+  end if
+
+  if lines = 2 and rooms = 0 then
+    ; Back out for flame in room 1
+    detOn = false
+    rightMotorb
+    leftMotorb
+    timeout 400
+    detOn = true
+    turnrightInplace
+    goForward
+    timeout 500
+    stopMotors
+    leftcooldown = reset
+    rooms++
+    adj = 15
+  else if lines = 4 and rooms = 1 then
+    ; Back out for room 3
+    docount = true
+    detOn = false
+    rightMotorb
+    leftmotorb
+    timeout 600
+    turnleftinplace
+    detOn = true
+    rooms++
+    rightpriority = true
+  else if lines = 5 and rooms = 2 then
+    ; Enter room 3
+    superslow = true
+    rooms++
+    docount = false
+    rightpriority = false
+    adj = 13
+  else if lines = 6 and rooms = 3 then
+    ; Room 3 line 1
+    stopmotors
+    timeout 100
+    leftmotorb
+    rightmotorb
+    timeout 700
+    turnrightinplace
+    goforward
+    pause 800
+    rooms++
+  else if lines = 7 and rooms = 4 then
+    ; Room 3 line 2
+    adj = 17
+    stopmotors
+    timeout 100
+    leftmotorb
+    rightmotorb
+    timeout 900
+    turnleftinplace
+    leftcooldown = 120
+    rooms++
+  else if lines = 8 and rooms = 5 then
+    adj = 13
+    ; Exit room 3
+    superSlow = false
+    rooms++
+    idkwhattoname = 12
+    rightpriority = false
+  else if lines = 9 and rooms = 6 then
+    ; Enter room 4
+    adj = 10
+    superslow = true
+    leftdisable = true
+    rooms++
+    stopMotors
+    pisshole = 50
+  else if lines = 10 and rooms = 7 then
+    ; Line for pit in room 4
+    leftmotorb
+    rightmotorb
+    pause 300
+    turnleftinplace
+    rooms++
+    idkwhattoname = 9
+  end if
+
+  stopMotors
+
+  cooldown++
+  if cooldown = 100 then
+    cooldown = 0
+  end if
+  if leftcooldown > 0 then
+    leftcooldown--
+  end if
+
+goto main
